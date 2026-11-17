@@ -13,3 +13,4 @@ output/
 # 编辑器 / 系统
 .DS_Store
 Thumbs.db
+.workbuddy/

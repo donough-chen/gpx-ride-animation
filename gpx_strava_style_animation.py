@@ -18,10 +18,23 @@ gpx_strava_style_animation.py
 
 使用方式：
   1. 把你的 GPX 文件放到 input/ 目录（可放多个）
-  2. 依需求调整下方 CONFIG 区块的参数
-  3. 执行：python gpx_strava_style_animation.py
-  4. 执行后先选择要用的 GPX 文件，再现场选择地图底图风格
-  5. 生成的视频输出到 output/ 目录
+  2. 执行：python gpx_strava_style_animation.py
+     执行后先选择要用的 GPX 文件，再现场选择地图底图风格；
+     也可用命令行参数直接指定（详见下方「命令行参数」）
+  3. 生成的视频输出到 output/ 目录
+
+命令行参数（均可省略，省略时用下方 CONFIG 默认值）：
+  --gpx <路径>              指定 GPX 文件（省略则交互式选择 input/ 下的）
+  --style <风格>            地图风格：1/2/3/4 或 dark/voyager/positron/satellite
+  --output <文件名>         输出文件名（默认 <gpx文件名>_ride_animation.mp4）
+  --view-margin <米>        主镜头视角半径
+  --camera-smooth <0~1>     镜头平滑系数
+  --video-duration <秒>     动画主体秒数
+  --zoom-out-duration <秒>  结尾拉远秒数
+  --end-hold-duration <秒>  结尾定格秒数
+  --end-padding <比例>      结尾留白比例
+  --fps <数值>              帧率
+  --cmap <名称>             轨迹渐层配色（plasma/turbo/viridis/coolwarm）
 
 注意：
   - contextily 下载地图底图需要网络连接，请确保本机可连外网（可存取
@@ -34,6 +47,7 @@ gpx_strava_style_animation.py
     matplotlib 3.11 即将移除的 `cm.get_cmap` 做兼容性修正。
 """
 
+import argparse
 import os
 
 import gpxpy
@@ -46,7 +60,7 @@ import contextily as cx
 from geopy.distance import geodesic
 from moviepy import VideoClip  # moviepy >= 2.0：不再有 moviepy.editor 子模块
 
-from map_styles import MAP_STYLE, MAP_STYLE_OPTIONS
+from map_styles import MAP_STYLE, MAP_STYLE_OPTIONS, STYLES, STYLE_ALIASES
 from file_utils import OUTPUT_DIR, ensure_dirs, select_gpx, gpx_stem
 
 # ===========================================================
@@ -396,17 +410,86 @@ def make_frame(t):
     return mplfig_to_npimage(fig)
 
 
-if __name__ == "__main__":
+def _resolve_style(style_str):
+    """把风格编号或名称解析为 provider。"""
+    key = style_str.strip().lower()
+    key = STYLE_ALIASES.get(key, key)
+    if key not in STYLES:
+        raise SystemExit(f"无法识别的风格「{style_str}」。可用：{' / '.join(sorted(STYLE_ALIASES))}。")
+    return STYLES[key][2]
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        description="把 GPX 骑行轨迹渲染成 Strava 风格的动画视频。",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "示例：\n"
+            "  python gpx_strava_style_animation.py\n"
+            "  python gpx_strava_style_animation.py --style voyager --fps 30\n"
+            "  python gpx_strava_style_animation.py --gpx input/ride_20250727.gpx --view-margin 500 --video-duration 30\n"
+        ),
+    )
+    parser.add_argument("--gpx", default=None, help="GPX 文件路径（省略则交互式选择 input/ 下的）")
+    parser.add_argument("--style", default=None,
+                        help="地图底图风格：1/2/3/4 或 dark/voyager/positron/satellite（省略则交互式选择）")
+    parser.add_argument("--output", default=None, help="输出文件名（默认 <gpx文件名>_ride_animation.mp4，输出到 output/ 目录）")
+    parser.add_argument("--view-margin", type=float, default=None, help=f"主镜头视角半径，米（默认 {VIEW_MARGIN}）")
+    parser.add_argument("--camera-smooth", type=float, default=None, help=f"镜头平滑系数 0~1（默认 {CAMERA_SMOOTH}）")
+    parser.add_argument("--video-duration", type=float, default=None, help=f"动画主体秒数（默认 {VIDEO_DURATION}）")
+    parser.add_argument("--zoom-out-duration", type=float, default=None, help=f"结尾拉远秒数（默认 {ZOOM_OUT_DURATION}）")
+    parser.add_argument("--end-hold-duration", type=float, default=None, help=f"结尾定格秒数（默认 {END_HOLD_DURATION}）")
+    parser.add_argument("--end-padding", type=float, default=None, help=f"结尾留白比例（默认 {END_PADDING_FRAC}）")
+    parser.add_argument("--fps", type=int, default=None, help=f"帧率（默认 {FPS}）")
+    parser.add_argument("--cmap", default=None, help=f"轨迹渐层配色（默认 {TRACK_CMAP}，如 plasma/turbo/viridis/coolwarm）")
+    return parser
+
+
+def main():
+    args = build_parser().parse_args()
+
+    # 用命令行参数覆盖 CONFIG 默认值（未指定时保持 CONFIG 里的默认值）
+    global VIEW_MARGIN, CAMERA_SMOOTH, VIDEO_DURATION, ZOOM_OUT_DURATION
+    global END_HOLD_DURATION, END_PADDING_FRAC, FPS, TRACK_CMAP, MAP_STYLE
+    if args.view_margin is not None:
+        VIEW_MARGIN = args.view_margin
+    if args.camera_smooth is not None:
+        CAMERA_SMOOTH = args.camera_smooth
+    if args.video_duration is not None:
+        VIDEO_DURATION = args.video_duration
+    if args.zoom_out_duration is not None:
+        ZOOM_OUT_DURATION = args.zoom_out_duration
+    if args.end_hold_duration is not None:
+        END_HOLD_DURATION = args.end_hold_duration
+    if args.end_padding is not None:
+        END_PADDING_FRAC = args.end_padding
+    if args.fps is not None:
+        FPS = args.fps
+    if args.cmap is not None:
+        TRACK_CMAP = args.cmap
+
     ensure_dirs()
-    gpx_path = select_gpx()          # 交互式选择 input/ 下的 GPX 文件
+    gpx_path = args.gpx if args.gpx else select_gpx()
     setup_route(gpx_path)
 
-    MAP_STYLE = choose_map_style()   # 执行时互动选择地图底图风格
+    # 地图底图风格：命令行指定优先，否则交互式选择
+    if args.style:
+        MAP_STYLE = _resolve_style(args.style)
+    else:
+        MAP_STYLE = choose_map_style()
 
-    output_path = os.path.join(OUTPUT_DIR, f"{gpx_stem(gpx_path)}_ride_animation.mp4")
+    output_path = (
+        os.path.join(OUTPUT_DIR, args.output)
+        if args.output
+        else os.path.join(OUTPUT_DIR, f"{gpx_stem(gpx_path)}_ride_animation.mp4")
+    )
     print("🎥 开始渲染动画（含地图 / 渐层轨迹 / HUD / 结尾 zoom-out 总结）...")
     total_duration = VIDEO_DURATION + ZOOM_OUT_DURATION + END_HOLD_DURATION
     clip = VideoClip(make_frame, duration=total_duration)
     clip.write_videofile(output_path, fps=FPS)
     plt.close(fig)
     print(f"✅ 完成！已保存为 {output_path}")
+
+
+if __name__ == "__main__":
+    main()

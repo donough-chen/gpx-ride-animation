@@ -63,6 +63,27 @@ python gpx_strava_style_animation.py
 
 生成的视频输出到 `output/<gpx文件名>_ride_animation.mp4`（不同 GPX 各自独立，不会互相覆盖）。
 
+也可以用命令行参数直接指定 GPX、地图风格与渲染参数，省去交互选择（均可省略，省略时用脚本内 CONFIG 默认值）：
+
+```bash
+python gpx_strava_style_animation.py --gpx input/ride_20250727.gpx --style voyager --fps 30
+python gpx_strava_style_animation.py --style dark --video-duration 30 --view-margin 500
+```
+
+| 参数 | 说明 | 默认 |
+|---|---|---|
+| `--gpx <路径>` | 指定 GPX 文件 | 交互式选择 |
+| `--style <风格>` | 1/2/3/4 或 dark/voyager/positron/satellite | 交互式选择 |
+| `--output <文件名>` | 输出文件名 | `<gpx文件名>_ride_animation.mp4` |
+| `--view-margin <米>` | 主镜头视角半径 | 800 |
+| `--camera-smooth <0~1>` | 镜头平滑系数 | 0.15 |
+| `--video-duration <秒>` | 动画主体秒数 | 20 |
+| `--zoom-out-duration <秒>` | 结尾拉远秒数 | 2.5 |
+| `--end-hold-duration <秒>` | 结尾定格秒数 | 4 |
+| `--end-padding <比例>` | 结尾留白比例 | 0.18 |
+| `--fps <数值>` | 帧率 | 24 |
+| `--cmap <名称>` | 轨迹渐层配色 | plasma |
+
 不确定选哪个底图风格？先跑：
 
 ```bash
