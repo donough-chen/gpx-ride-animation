@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# 生成的产物（视频与图片，可随时重新生成）
+output/
+
+# 环境变量（含私人密钥，勿提交）
+.env
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
